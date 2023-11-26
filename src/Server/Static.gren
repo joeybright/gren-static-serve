@@ -1,8 +1,8 @@
-module Server.Static exposing ( Mode(..), Config, serve )
+module Server.Static exposing ( Mode(..), Config, response )
 
 {-| Serve static files from a provided directory
 
-@docs Config, Mode, serve
+@docs Config, Mode, response
 
 -}
 
@@ -20,32 +20,32 @@ support, please reach out!
 
 #### `Normal` Mode
 
-`Normal` mode attempts to find a file with the exact path given. If a file is not found, a 
-404 `Response` is returned.
+`Normal` mode attempts to find a file with the exact path given. If a file is not found, the
+`Task` fails with a 404 `Response`.
 
 #### `SinglePageApp` Mode
 
 `SinglePageApp` mode attempts to find the file on the given path. If it fails, it looks for an
 `index.html` file at the root of the static file directory and returns it instead. If there
-is no such file, a 404 `Response` is returned. 
+is no such file, the `Task` fails and with a 404 `Response`. 
 
 As the mode name suggests, this allows for serving single-page apps which have a single 
-`index.html` file for the entire application and want to route most (if not all) URL traffic
+`index.html` file for the entire application and want to route most (if not all) traffic
 through it.
 
-#### `PrettyUrls` Mode
+#### `PrettyUrl` Mode
 
-`PrettyUrls` mode attempts to find the file on the given path. If it fails, append `index.html`
+`PrettyUrl` mode attempts to find the file on the given path. If it fails, append `index.html`
 to the given path to try and find that file. If this fails, return a 404 `Response`.
 
 This mode supports many static-site generators who generate urls like `about/index.html` rather than
-`about.html` for each page.
+`about.html` for each generated file.
 
 -}
 type Mode
     = Normal
     | SinglePageApp
-    | PrettyUrls
+    | PrettyUrl
 
 
 {-| An internal type for representing a path on disk.
@@ -67,9 +67,10 @@ type ReadFileError
 
 {-| Configuration options required to find files and generate responses.
 
-- `fileSystemPermission` is the permission you get from Gren for accessing the file system.
+- `fileSystemPermission` is the permission you get from `gren-lang/node` package for accessing 
+the file system.
 - `httpResponse` is the `Response` type you get from the `gren-lang/node` package. This is 
-required to construct an HTTP response.
+required for this package to construct an HTTP response.
 - `directory` is the directory that will be looked into to find any requested files. This
 package will only search for files in this directory.
 - `mode` describes how this module will search for and find static files. Check out the docs
@@ -187,8 +188,8 @@ staticFileResponse { directory, httpResponse, fileSystemPermission } path pathMo
 The task, when successful, will produce a `Response` that contains the requested files 
 contents. If the task fails, it will produce a `Response` with a 404 status code.
 -}
-serve : Array String -> Config -> Task Response Response
-serve passedPath config =
+response : Array String -> Config -> Task Response Response
+response passedPath config =
     let
         notFoundResponse : HttpServer.Response.Response
         notFoundResponse =
@@ -214,20 +215,20 @@ serve passedPath config =
             staticFileResponse config (arrayFromPath path) Nothing
                 |> Task.mapError (\_ -> notFoundResponse)
 
-        { mode = PrettyUrls, path = Path path Nothing } ->
+        { mode = PrettyUrl, path = Path path Nothing } ->
             -- In `PrettyUrls` mode, when there is directory being looked for (not a file), try to
             -- find the `index.html` file within that directory
             staticFileResponse config path (Just "index.html")
                 |> Task.mapError (\_ -> notFoundResponse)
 
-        { mode = PrettyUrls, path = Path path (Just [ "index", "html" ]) } ->
+        { mode = PrettyUrl, path = Path path (Just [ "index", "html" ]) } ->
             -- In `PrettyUrls` mode, when you're trying to access an index.html file and that file
             -- exists, redirect the directory rather than the index.html file itself
             staticFileResponse config path (Just "index.html")
                 |> Task.map (redirect path)
                 |> Task.mapError (\_ -> notFoundResponse)
 
-        { mode = PrettyUrls, path } ->
+        { mode = PrettyUrl, path } ->
             -- In `PrettyUrls` mode, when there is a filename being looked for, just try to find
             -- the file name and return it or otherwise fail!
             staticFileResponse config (arrayFromPath path) Nothing
@@ -251,4 +252,4 @@ serve passedPath config =
             -- and otherwise try to serve the root index.html file and fail if that index.html
             -- file does not exist.
             staticFileResponse config (arrayFromPath path) Nothing
-                |> Task.onError (\_ -> serve [] config)
+                |> Task.onError (\_ -> response [] config)
