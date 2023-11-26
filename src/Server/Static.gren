@@ -12,6 +12,7 @@ import FileSystem
 import HttpServer.Response
 import HttpServer.Response exposing ( Response )
 import Task exposing ( Task )
+import Url exposing ( Url )
 
 
 {-| The `Mode` dictates what files will be searched for and in what order. Modes are meant to 
@@ -183,13 +184,29 @@ staticFileResponse { directory, httpResponse, fileSystemPermission } path pathMo
                 )
 
 
-{-| Get the passed file from a specified "static" folder.
+{-| Try to get a file from a specified "static" folder given a passed `Url`.
 
-The task, when successful, will produce a `Response` that contains the requested files 
-contents. If the task fails, it will produce a `Response` with a 404 status code.
+When the task is successful, this function will produce a `Response` that contains the 
+requested files contents. If the task fails, it will produce a `Response` with a 404 
+status code.
 -}
-response : Array String -> Config -> Task Response Response
-response passedPath config =
+response : Url -> Config -> Task Response Response
+response url config =
+    let
+        pathFromUrl : Array String
+        pathFromUrl =
+            url.path
+                |> String.split "/"
+                |> Array.dropFirst 1
+                |> Array.filter ((/=) "")
+    in
+    responseHelper pathFromUrl config
+
+
+{-| This function does all the work.
+-}
+responseHelper : Array String -> Config -> Task Response Response
+responseHelper passedPath config =
     let
         notFoundResponse : HttpServer.Response.Response
         notFoundResponse =
@@ -252,4 +269,4 @@ response passedPath config =
             -- and otherwise try to serve the root index.html file and fail if that index.html
             -- file does not exist.
             staticFileResponse config (arrayFromPath path) Nothing
-                |> Task.onError (\_ -> response [] config)
+                |> Task.onError (\_ -> responseHelper [] config)
