@@ -1,0 +1,254 @@
+module Server.Static exposing ( Mode(..), Config, serve )
+
+{-| Serve static files from a provided directory
+
+@docs Config, Mode, serve
+
+-}
+
+import Bytes exposing ( Bytes )
+import Bytes.Decode
+import FileSystem
+import HttpServer.Response
+import HttpServer.Response exposing ( Response )
+import Task exposing ( Task )
+
+
+{-| The `Mode` dictates what files will be searched for and in what order. Modes are meant to 
+support the most common use-cases without any configuration. If there's a use-case this does not 
+support, please reach out!
+
+#### `Normal` Mode
+
+`Normal` mode attempts to find a file with the exact path given. If a file is not found, a 
+404 `Response` is returned.
+
+#### `SinglePageApp` Mode
+
+`SinglePageApp` mode attempts to find the file on the given path. If it fails, it looks for an
+`index.html` file at the root of the static file directory and returns it instead. If there
+is no such file, a 404 `Response` is returned. 
+
+As the mode name suggests, this allows for serving single-page apps which have a single 
+`index.html` file for the entire application and want to route most (if not all) URL traffic
+through it.
+
+#### `PrettyUrls` Mode
+
+`PrettyUrls` mode attempts to find the file on the given path. If it fails, append `index.html`
+to the given path to try and find that file. If this fails, return a 404 `Response`.
+
+This mode supports many static-site generators who generate urls like `about/index.html` rather than
+`about.html` for each page.
+
+-}
+type Mode
+    = Normal
+    | SinglePageApp
+    | PrettyUrls
+
+
+{-| An internal type for representing a path on disk.
+
+The first `Array String` represents the path. The second `Array String`, wrapped in a `Maybe`,
+represents a file with an extension (`.md`, for example).
+-}
+type Path
+    = Path (Array String) (Maybe (Array String))
+
+
+{-| Possible errors when trying to read a static file from disk. Wraps both the known
+and unknown errors into one type so no mapping between them is needed.
+-}
+type ReadFileError
+    = AccessError FileSystem.AccessError
+    | UnknownFileSystemError FileSystem.UnknownFileSystemError
+
+
+{-| Configuration options required to find files and generate responses.
+
+- `fileSystemPermission` is the permission you get from Gren for accessing the file system.
+- `httpResponse` is the `Response` type you get from the `gren-lang/node` package. This is 
+required to construct an HTTP response.
+- `directory` is the directory that will be looked into to find any requested files. This
+package will only search for files in this directory.
+- `mode` describes how this module will search for and find static files. Check out the docs
+for the `Mode` type for more details.
+-}
+type alias Config =
+    { fileSystemPermission : FileSystem.Permission
+    , httpResponse : HttpServer.Response.Response
+    , directory : String
+    , mode : Mode
+    }
+
+
+{-| Create a `Path` from an `Array String`.
+-}
+pathFromArray : Array String -> Path
+pathFromArray passedPath =
+    passedPath
+        |> Array.popLast
+        |> Maybe.map
+                (\{ initial, last } ->
+                    case String.split "." last of
+                        [] ->
+                            Path passedPath Nothing
+
+                        [ item ] ->
+                            Path passedPath Nothing
+
+                        filePath ->
+                            Path initial (Just filePath)
+                )
+        |> Maybe.withDefault (Path passedPath Nothing)
+
+
+{-| Change a `Path` back into an `Array String`
+-}
+arrayFromPath : Path -> Array String
+arrayFromPath passedPath =
+    case passedPath of
+        Path path (Just fileName) ->
+            let
+                constructedFileName =
+                    fileName
+                        |> Array.intersperse "."
+                        |> Array.foldr (++) ""
+            in
+            Array.pushLast constructedFileName path
+
+        Path path Nothing ->
+            path
+
+
+{-| Read a file from disk as `Bytes`. 
+-}
+readFileAsBytes : FileSystem.Permission -> String -> Task ReadFileError Bytes
+readFileAsBytes fsPermission fileName =
+    FileSystem.openForRead fsPermission fileName
+        |> Task.mapError AccessError
+        |> Task.andThen
+                (\permission ->
+                    FileSystem.read permission
+                        |> Task.mapError UnknownFileSystemError
+                )
+
+
+{-| Read a file from disk as `String`.
+-}
+readFileAsString : FileSystem.Permission -> String -> Task ReadFileError String
+readFileAsString fsPermission fileName =
+    let
+        fileBytesToString : Bytes -> Maybe String
+        fileBytesToString bytes =
+            Bytes.Decode.decode (Bytes.Decode.string (Bytes.width bytes)) bytes
+    in
+    readFileAsBytes fsPermission fileName
+        |> Task.map fileBytesToString
+        |> Task.andThen
+                (\result ->
+                    let
+                        err =
+                            UnknownFileSystemError (FileSystem.UnknownFileSystemError "")
+                    in
+                    Maybe.map Task.succeed result
+                        |> Maybe.withDefault (Task.fail err)
+                )
+
+
+{-| Take the passed path (and an optional modifier), try to find a file at that path, and 
+produce a `Response` if it can be found.
+-}
+staticFileResponse : Config -> Array String -> Maybe String -> Task ReadFileError Response
+staticFileResponse { directory, httpResponse, fileSystemPermission } path pathModifier =
+    -- Build the path from the given path and any modifiers. Leverages the `FileSystem`
+    -- built-ins to normalize it.
+    pathModifier
+        |> Maybe.map (\mod -> Array.pushLast mod path)
+        |> Maybe.withDefault path
+        |> Array.pushFirst directory
+        |> FileSystem.buildPath
+        |> FileSystem.normalizePath
+        -- Attempt to take the path and get a file from it on the file system 
+        |> readFileAsString fileSystemPermission
+        |> Task.map
+                (\body ->
+                    -- If it succeeds, produce a 200 (OK) response with the body set to 
+                    -- the found files contents (as a `String`)
+                    httpResponse
+                        |> HttpServer.Response.setStatus 200
+                        |> HttpServer.Response.setBody body
+                )
+
+
+{-| Get the passed file from a specified "static" folder.
+
+The task, when successful, will produce a `Response` that contains the requested files 
+contents. If the task fails, it will produce a `Response` with a 404 status code.
+-}
+serve : Array String -> Config -> Task Response Response
+serve passedPath config =
+    let
+        notFoundResponse : HttpServer.Response.Response
+        notFoundResponse =
+            HttpServer.Response.setStatus 404 config.httpResponse
+
+        redirect : Array String -> HttpServer.Response.Response -> HttpServer.Response.Response
+        redirect path res =
+            let
+                location =
+                    "/" ++ Array.foldr (++) "" path
+            in
+            HttpServer.Response.setStatus 308 res
+                |> HttpServer.Response.setHeader "Location" location
+    in
+    case
+        { mode = config.mode
+        , path = pathFromArray passedPath
+        }
+    of
+        { mode = Normal, path } ->
+            -- In `Normal` mode, just try to find the passed path without any modifications 
+            -- or fallbacks. Just fail if the file can't be found.
+            staticFileResponse config (arrayFromPath path) Nothing
+                |> Task.mapError (\_ -> notFoundResponse)
+
+        { mode = PrettyUrls, path = Path path Nothing } ->
+            -- In `PrettyUrls` mode, when there is directory being looked for (not a file), try to
+            -- find the `index.html` file within that directory
+            staticFileResponse config path (Just "index.html")
+                |> Task.mapError (\_ -> notFoundResponse)
+
+        { mode = PrettyUrls, path = Path path (Just [ "index", "html" ]) } ->
+            -- In `PrettyUrls` mode, when you're trying to access an index.html file and that file
+            -- exists, redirect the directory rather than the index.html file itself
+            staticFileResponse config path (Just "index.html")
+                |> Task.map (redirect path)
+                |> Task.mapError (\_ -> notFoundResponse)
+
+        { mode = PrettyUrls, path } ->
+            -- In `PrettyUrls` mode, when there is a filename being looked for, just try to find
+            -- the file name and return it or otherwise fail!
+            staticFileResponse config (arrayFromPath path) Nothing
+                |> Task.mapError (\_ -> notFoundResponse)
+
+        { mode = SinglePageApp, path = Path _path Nothing } ->
+            -- In `SinglePageApp` mode when there is not a file being looked for, just return the
+            -- root `index.html` file if it exists.
+            staticFileResponse config [] (Just "index.html")
+                |> Task.mapError (\_ -> notFoundResponse)
+
+        { mode = SinglePageApp, path = Path [] (Just [ "index", "html" ]) } ->
+            -- In `SinglePageApp` mode, when you're trying to access the `index.html` file at the
+            -- root and that file exists, redirect the browser to the root
+            staticFileResponse config [] (Just "index.html")
+                |> Task.map (redirect [])
+                |> Task.mapError (\_ -> notFoundResponse)
+
+        { mode = SinglePageApp, path } ->
+            -- In `SinglePageApp` mode when a specific file is being looked for, try to find it
+            -- and otherwise try to serve the root index.html file and fail if that index.html
+            -- file does not exist.
+            staticFileResponse config (arrayFromPath path) Nothing
+                |> Task.onError (\_ -> serve [] config)
