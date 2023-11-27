@@ -2,7 +2,7 @@
     "type": "package",
     "platform": "node",
     "name": "joeybright/gren-static-serve",
-    "summary": "A server for serving static files",
+    "summary": "Serve static files from a provided directory",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
     "exposed-modules": [
