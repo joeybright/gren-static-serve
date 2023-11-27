@@ -16,19 +16,19 @@ import Url exposing ( Url )
 
 
 {-| The `Mode` dictates what files will be searched for and in what order. Modes are meant to 
-support the most common use-cases without any configuration. If there's a use-case this does not 
-support, please reach out!
+support common use-cases without any configuration. If there's a use-case this does not 
+support, leave feedback on Github!
 
 #### `Normal` Mode
 
-`Normal` mode attempts to find a file with the exact path given. If a file is not found, the
-`Task` fails with a 404 `Response`.
+`Normal` mode attempts to find a file with the exact path given. If a file is not found, it 
+fails with a 404 `Response`.
 
 #### `SinglePageApp` Mode
 
 `SinglePageApp` mode attempts to find the file on the given path. If it fails, it looks for an
 `index.html` file at the root of the static file directory and returns it instead. If there
-is no such file, the `Task` fails and with a 404 `Response`. 
+is no such file, it fails and with a 404 `Response`. 
 
 As the mode name suggests, this allows for serving single-page apps which have a single 
 `index.html` file for the entire application and want to route most (if not all) traffic
@@ -68,12 +68,14 @@ type ReadFileError
 
 {-| Configuration options required to find files and generate responses.
 
-- `fileSystemPermission` is the permission you get from `gren-lang/node` package for accessing 
-the file system.
-- `httpResponse` is the `Response` type you get from the `gren-lang/node` package. This is 
-required for this package to construct an HTTP response.
+- `fileSystemPermission` is the permission you get from the `FileSystem` module of the 
+`gren-lang/node` package for accessing the file system. This module needs read access to
+the file system to get any requested files.
+- `httpResponse` is the `Response` type you get from the `HttpResponse` module of the 
+`gren-lang/node` package. This is required for this module to construct and return an 
+HTTP `Response`.
 - `directory` is the directory that will be looked into to find any requested files. This
-package will only search for files in this directory.
+module will only search the file system for files in this directory.
 - `mode` describes how this module will search for and find static files. Check out the docs
 for the `Mode` type for more details.
 -}
