@@ -194,8 +194,8 @@ When the task is successful, this function will produce a `Response` that contai
 requested files contents. If the task fails, it will produce a `Response` with a 404 
 status code.
 -}
-response : Url -> Config -> Task Response Response
-response url config =
+response : Config -> Url -> Task Response Response
+response config url =
     let
         pathFromUrl : Array String
         pathFromUrl =
@@ -204,13 +204,13 @@ response url config =
                 |> Array.dropFirst 1
                 |> Array.filter ((/=) "")
     in
-    responseHelper pathFromUrl config
+    responseHelper config pathFromUrl
 
 
 {-| This function does all the work.
 -}
-responseHelper : Array String -> Config -> Task Response Response
-responseHelper passedPath config =
+responseHelper : Config -> Array String -> Task Response Response
+responseHelper config passedPath =
     let
         notFoundResponse : HttpServer.Response.Response
         notFoundResponse =
@@ -273,4 +273,4 @@ responseHelper passedPath config =
             -- and otherwise try to serve the root index.html file and fail if that index.html
             -- file does not exist.
             staticFileResponse config (arrayFromPath path) Nothing
-                |> Task.onError (\_ -> responseHelper [] config)
+                |> Task.onError (\_ -> responseHelper config [])
