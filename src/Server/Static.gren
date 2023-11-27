@@ -184,7 +184,11 @@ staticFileResponse { directory, httpResponse, fileSystemPermission } path pathMo
                 )
 
 
-{-| Try to get a file from a specified "static" folder given a passed `Url`.
+{-| Try to get a file from a folder given a passed `Url`.
+
+This function takes a `Url` and uses its path to know what file to look for. This decision
+makes it simple to integrate with received requests from the `HttpServer` module of the
+`gren/node` package.
 
 When the task is successful, this function will produce a `Response` that contains the 
 requested files contents. If the task fails, it will produce a `Response` with a 404 
