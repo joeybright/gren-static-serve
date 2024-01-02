@@ -1,8 +1,8 @@
-module Server.Static exposing ( Mode(..), Config, response )
+module Server.Static exposing ( Mode(..), Config, ReadFileError(..), response, responseWithNotFound )
 
 {-| Serve static files from a provided directory
 
-@docs Config, Mode, response
+@docs Config, Mode, ReadFileError, response, responseWithNotFound
 
 -}
 
@@ -58,8 +58,10 @@ type Path
     = Path (Array String) (Maybe (Array String))
 
 
-{-| Possible errors when trying to read a static file from disk. Wraps both the known
-and unknown errors into one type so no mapping between them is needed.
+{-| Possible errors when trying to read a static file from disk. Wraps both the known 
+(`FileSystem.AccessError`) and unknown (`FileSystem.UnknownFileSystemError`) errors into one
+type so no mapping between them is needed.
+
 -}
 type ReadFileError
     = AccessError FileSystem.AccessError
@@ -193,10 +195,9 @@ makes it simple to integrate with received requests from the `HttpServer` module
 `gren/node` package.
 
 When the task is successful, this function will produce a `Response` that contains the 
-requested files contents. If the task fails, it will produce a `Response` with a 404 
-status code.
+requested files contents as a `String`. If the task fails, it will produce an error.
 -}
-response : Config -> Url -> Task Response Response
+response : Config -> Url -> Task ReadFileError Response
 response config url =
     let
         pathFromUrl : Array String
@@ -209,15 +210,26 @@ response config url =
     responseHelper config pathFromUrl
 
 
+{-| Try to get a file from a folder given a passed `Url`.
+
+This function just maps the error produced by the `response` function, ignores is, and
+uses a 404 response in its place. It's implementation is simple and can be copied or
+modified to suite your needs.
+
+    response config url
+        |> Task.mapError (\_ -> HttpServer.Response.setStatus 404 config.httpResponse)
+-}
+responseWithNotFound : Config -> Url -> Task Response Response
+responseWithNotFound config url =
+    response config url
+        |> Task.mapError (\_ -> HttpServer.Response.setStatus 404 config.httpResponse)
+
+
 {-| This function does all the work.
 -}
-responseHelper : Config -> Array String -> Task Response Response
+responseHelper : Config -> Array String -> Task ReadFileError Response
 responseHelper config passedPath =
     let
-        notFoundResponse : HttpServer.Response.Response
-        notFoundResponse =
-            HttpServer.Response.setStatus 404 config.httpResponse
-
         redirect : Array String -> HttpServer.Response.Response -> HttpServer.Response.Response
         redirect path res =
             let
@@ -236,39 +248,33 @@ responseHelper config passedPath =
             -- In `Normal` mode, just try to find the passed path without any modifications 
             -- or fallbacks. Just fail if the file can't be found.
             staticFileResponse config (arrayFromPath path) Nothing
-                |> Task.mapError (\_ -> notFoundResponse)
 
         { mode = PrettyUrl, path = Path path Nothing } ->
             -- In `PrettyUrls` mode, when there is directory being looked for (not a file), try to
             -- find the `index.html` file within that directory
             staticFileResponse config path (Just "index.html")
-                |> Task.mapError (\_ -> notFoundResponse)
 
         { mode = PrettyUrl, path = Path path (Just [ "index", "html" ]) } ->
             -- In `PrettyUrls` mode, when you're trying to access an index.html file and that file
             -- exists, redirect the directory rather than the index.html file itself
             staticFileResponse config path (Just "index.html")
                 |> Task.map (redirect path)
-                |> Task.mapError (\_ -> notFoundResponse)
 
         { mode = PrettyUrl, path } ->
             -- In `PrettyUrls` mode, when there is a filename being looked for, just try to find
             -- the file name and return it or otherwise fail!
             staticFileResponse config (arrayFromPath path) Nothing
-                |> Task.mapError (\_ -> notFoundResponse)
 
         { mode = SinglePageApp, path = Path _path Nothing } ->
             -- In `SinglePageApp` mode when there is not a file being looked for, just return the
             -- root `index.html` file if it exists.
             staticFileResponse config [] (Just "index.html")
-                |> Task.mapError (\_ -> notFoundResponse)
 
         { mode = SinglePageApp, path = Path [] (Just [ "index", "html" ]) } ->
             -- In `SinglePageApp` mode, when you're trying to access the `index.html` file at the
             -- root and that file exists, redirect the browser to the root
             staticFileResponse config [] (Just "index.html")
                 |> Task.map (redirect [])
-                |> Task.mapError (\_ -> notFoundResponse)
 
         { mode = SinglePageApp, path } ->
             -- In `SinglePageApp` mode when a specific file is being looked for, try to find it
