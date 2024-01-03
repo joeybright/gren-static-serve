@@ -4,7 +4,7 @@
     "name": "joeybright/gren-static-serve",
     "summary": "Serve static files from a provided directory",
     "license": "BSD-3-Clause",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "exposed-modules": [
         "Server.Static"
     ],
