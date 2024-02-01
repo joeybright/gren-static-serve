@@ -11,6 +11,7 @@ import Bytes.Decode
 import FileSystem
 import HttpServer.Response
 import HttpServer.Response exposing ( Response )
+import MimeType
 import Task exposing ( Task )
 import Url exposing ( Url )
 
@@ -167,12 +168,26 @@ readFileAsString fsPermission fileName =
 produce a `Response` if it can be found.
 -}
 staticFileResponse : Config -> Array String -> Maybe String -> Task ReadFileError Response
-staticFileResponse { directory, httpResponse, fileSystemPermission } path pathModifier =
+staticFileResponse { directory, httpResponse, fileSystemPermission } passedPath pathModifier =
+    let
+        {- The passed path incluing any passed modifiers
+        -}
+        path =
+            pathModifier
+                |> Maybe.map (\mod -> Array.pushLast mod passedPath)
+                |> Maybe.withDefault passedPath
+
+        {- The derived mime type of the file located at `path` (if any)
+        -}
+        mimeType =
+            path
+                |> Array.last
+                |> Maybe.withDefault ""
+                |> MimeType.lookup
+    in
     -- Build the path from the given path and any modifiers. Leverages the `FileSystem`
     -- built-ins to normalize it.
-    pathModifier
-        |> Maybe.map (\mod -> Array.pushLast mod path)
-        |> Maybe.withDefault path
+    path
         |> Array.pushFirst directory
         |> FileSystem.buildPath
         |> FileSystem.normalizePath
@@ -183,6 +198,7 @@ staticFileResponse { directory, httpResponse, fileSystemPermission } path pathMo
                     -- If it succeeds, produce a 200 (OK) response with the body set to 
                     -- the found files contents (as a `String`)
                     httpResponse
+                        |> HttpServer.Response.setHeader "Content-Type" mimeType
                         |> HttpServer.Response.setStatus 200
                         |> HttpServer.Response.setBody body
                 )
