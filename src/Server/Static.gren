@@ -176,7 +176,7 @@ staticFileResponse { directory, httpResponse, fileSystemPermission } passedPath 
             pathModifier
                 |> Maybe.map (\mod -> Array.pushLast mod passedPath)
                 |> Maybe.withDefault passedPath
-            
+
         {- The derived mime type of the file located at `path` (if any)
         -}
         mimeType =
