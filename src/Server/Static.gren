@@ -168,8 +168,17 @@ readFileAsString fsPermission fileName =
 produce a `Response` if it can be found.
 -}
 staticFileResponse : Config -> Array String -> Maybe String -> Task ReadFileError Response
-staticFileResponse { directory, httpResponse, fileSystemPermission } path pathModifier =
+staticFileResponse { directory, httpResponse, fileSystemPermission } passedPath pathModifier =
     let
+        {- The passed path incluing any passed modifiers
+        -}
+        path =
+            pathModifier
+                |> Maybe.map (\mod -> Array.pushLast mod passedPath)
+                |> Maybe.withDefault passedPath
+            
+        {- The derived mime type of the file located at `path` (if any)
+        -}
         mimeType =
             path
                 |> Array.last
@@ -178,9 +187,7 @@ staticFileResponse { directory, httpResponse, fileSystemPermission } path pathMo
     in
     -- Build the path from the given path and any modifiers. Leverages the `FileSystem`
     -- built-ins to normalize it.
-    pathModifier
-        |> Maybe.map (\mod -> Array.pushLast mod path)
-        |> Maybe.withDefault path
+    path
         |> Array.pushFirst directory
         |> FileSystem.buildPath
         |> FileSystem.normalizePath
