@@ -142,28 +142,6 @@ readFileAsBytes fsPermission fileName =
                 )
 
 
-{-| Read a file from disk as `String`.
--}
-readFileAsString : FileSystem.Permission -> String -> Task ReadFileError String
-readFileAsString fsPermission fileName =
-    let
-        fileBytesToString : Bytes -> Maybe String
-        fileBytesToString bytes =
-            Bytes.Decode.decode (Bytes.Decode.string (Bytes.width bytes)) bytes
-    in
-    readFileAsBytes fsPermission fileName
-        |> Task.map fileBytesToString
-        |> Task.andThen
-                (\result ->
-                    let
-                        err =
-                            UnknownFileSystemError (FileSystem.UnknownFileSystemError "")
-                    in
-                    Maybe.map Task.succeed result
-                        |> Maybe.withDefault (Task.fail err)
-                )
-
-
 {-| Take the passed path (and an optional modifier), try to find a file at that path, and 
 produce a `Response` if it can be found.
 -}
@@ -192,7 +170,7 @@ staticFileResponse { directory, httpResponse, fileSystemPermission } passedPath 
         |> FileSystem.buildPath
         |> FileSystem.normalizePath
         -- Attempt to take the path and get a file from it on the file system 
-        |> readFileAsString fileSystemPermission
+        |> readFileAsBytes fileSystemPermission
         |> Task.map
                 (\body ->
                     -- If it succeeds, produce a 200 (OK) response with the body set to 
@@ -200,7 +178,7 @@ staticFileResponse { directory, httpResponse, fileSystemPermission } passedPath 
                     httpResponse
                         |> HttpServer.Response.setHeader "Content-Type" mimeType
                         |> HttpServer.Response.setStatus 200
-                        |> HttpServer.Response.setBody body
+                        |> HttpServer.Response.setBodyAsBytes body
                 )
 
 
