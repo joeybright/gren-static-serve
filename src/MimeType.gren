@@ -22,234 +22,81 @@ getExtension fname =
 
 mimeTypes : Dict String String
 mimeTypes =
-    Dict.fromArray
-        -- Pulled from https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
-        [ { key = "aac"
-          , value = "audio/aac"
-          }
-        , { key = "abw"
-          , value = "application/x-abiword"
-          }
-        , { key = "apng"
-          , value = "image/apng"
-          }
-        , { key = "arc"
-          , value = "application/x-freearc"
-          }
-        , { key = "avif"
-          , value = "image/avif"
-          }
-        , { key = "avi"
-          , value = "video/x-msvideo"
-          }
-        , { key = "azw"
-          , value = "application/vnd.amazon.ebook"
-          }
-        , { key = "bin"
-          , value = "application/octet-stream"
-          }
-        , { key = "bmp"
-          , value = "image/bmp"
-          }
-        , { key = "bz"
-          , value = "application/x-bzip"
-          }
-        , { key = "bz2"
-          , value = "application/x-bzip2"
-          }
-        , { key = "cda"
-          , value = "application/x-cdf"
-          }
-        , { key = "csh"
-          , value = "application/x-csh"
-          }
-        , { key = "css"
-          , value = "text/css"
-          }
-        , { key = "csv"
-          , value = "text/csv"
-          }
-        , { key = "doc"
-          , value = "application/msword"
-          }
-        , { key = "docx"
-          , value = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          }
-        , { key = "eot"
-          , value = "application/vnd.ms-fontobject"
-          }
-        , { key = "epub"
-          , value = "application/epub+zip"
-          }
-        , { key = "gz"
-          , value = "application/gzip"
-          }
-        , { key = "gif"
-          , value = "image/gif"
-          }
-        , { key = "htm"
-          , value = "text/html"
-          }
-        , { key = "html"
-          , value = "text/html"
-          }
-        , { key = "ico"
-          , value = "image/vnd.microsoft.icon"
-          }
-        , { key = "ics"
-          , value = "text/calendar"
-          }
-        , { key = "jar"
-          , value = "application/java-archive"
-          }
-        , { key = "jpeg"
-          , value = "image/jpeg"
-          }
-        , { key = "jpg"
-          , value = "image/jpeg"
-          }
-        , { key = "js"
-          , value = "text/javascript"
-          }
-        , { key = "json"
-          , value = "application/json"
-          }
-        , { key = "jsonld"
-          , value = "application/ld+json"
-          }
-        , { key = "mid"
-          , value = "audio/midi"
-          }
-        , { key = "midi"
-          , value = "audio/midi"
-          }
-        , { key = "mjs"
-          , value = "text/javascript"
-          }
-        , { key = "mp3"
-          , value = "audio/mpeg"
-          }
-        , { key = "mp4"
-          , value = "video/mp4"
-          }
-        , { key = "mpeg"
-          , value = "video/mpeg"
-          }
-        , { key = "mpkg"
-          , value = "application/vnd.apple.installer+xml"
-          }
-        , { key = "odp"
-          , value = "application/vnd.oasis.opendocument.presentation"
-          }
-        , { key = "ods"
-          , value = "application/vnd.oasis.opendocument.spreadsheet"
-          }
-        , { key = "odt"
-          , value = "application/vnd.oasis.opendocument.text"
-          }
-        , { key = "oga"
-          , value = "audio/ogg"
-          }
-        , { key = "ogv"
-          , value = "video/ogg"
-          }
-        , { key = "ogx"
-          , value = "application/ogg"
-          }
-        , { key = "opus"
-          , value = "audio/opus"
-          }
-        , { key = "otf"
-          , value = "font/otf"
-          }
-        , { key = "png"
-          , value = "image/png"
-          }
-        , { key = "pdf"
-          , value = "application/pdf"
-          }
-        , { key = "php"
-          , value = "application/x-httpd-php"
-          }
-        , { key = "ppt"
-          , value = "application/vnd.ms-powerpoint"
-          }
-        , { key = "pptx"
-          , value = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-          }
-        , { key = "rar"
-          , value = "application/vnd.rar"
-          }
-        , { key = "rtf"
-          , value = "application/rtf"
-          }
-        , { key = "sh"
-          , value = "application/x-sh"
-          }
-        , { key = "svg"
-          , value = "image/svg+xml"
-          }
-        , { key = "tar"
-          , value = "application/x-tar"
-          }
-        , { key = "tif"
-          , value = "image/tiff"
-          }
-        , { key = "tiff"
-          , value = "image/tiff"
-          }
-        , { key = "ts"
-          , value = "video/mp2t"
-          }
-        , { key = "ttf"
-          , value = "font/ttf"
-          }
-        , { key = "txt"
-          , value = "text/plain"
-          }
-        , { key = "vsd"
-          , value = "application/vnd.visio"
-          }
-        , { key = "wasm"
-          , value = "application/wasm"
-          }
-        , { key = "wav"
-          , value = "audio/wav"
-          }
-        , { key = "weba"
-          , value = "audio/webm"
-          }
-        , { key = "webm"
-          , value = "video/webm"
-          }
-        , { key = "webp"
-          , value = "image/webp"
-          }
-        , { key = "woff"
-          , value = "font/woff"
-          }
-        , { key = "woff2"
-          , value = "font/woff2"
-          }
-        , { key = "xhtml"
-          , value = "application/xhtml+xml"
-          }
-        , { key = "xls"
-          , value = "application/vnd.ms-excel"
-          }
-        , { key = "xlsx"
-          , value = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          }
-        , { key = "xml"
-          , value = "application/xml"
-          }
-        , { key = "xul"
-          , value = "application/vnd.mozilla.xul+xml"
-          }
-        , { key = "zip"
-          , value = "application/zip"
-          }
-        , { key = "7z"
-          , value = "application/x-7z-compressed"
-          }
-        ]
+    -- Pulled from https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
+    Dict.empty
+        |> Dict.set "aac" "audio/aac"
+        |> Dict.set "abw" "application/x-abiword"
+        |> Dict.set "apng" "image/apng"
+        |> Dict.set "arc" "application/x-freearc"
+        |> Dict.set "avif" "image/avif"
+        |> Dict.set "avi" "video/x-msvideo"
+        |> Dict.set "azw" "application/vnd.amazon.ebook"
+        |> Dict.set "bin" "application/octet-stream"
+        |> Dict.set "bmp" "image/bmp"
+        |> Dict.set "bz" "application/x-bzip"
+        |> Dict.set "bz2" "application/x-bzip2"
+        |> Dict.set "cda" "application/x-cdf"
+        |> Dict.set "csh" "application/x-csh"
+        |> Dict.set "css" "text/css"
+        |> Dict.set "csv" "text/csv"
+        |> Dict.set "doc" "application/msword"
+        |> Dict.set "docx" "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        |> Dict.set "eot" "application/vnd.ms-fontobject"
+        |> Dict.set "epub" "application/epub+zip"
+        |> Dict.set "gz" "application/gzip"
+        |> Dict.set "gif" "image/gif"
+        |> Dict.set "htm" "text/html"
+        |> Dict.set "html" "text/html"
+        |> Dict.set "ico" "image/vnd.microsoft.icon"
+        |> Dict.set "ics" "text/calendar"
+        |> Dict.set "jar" "application/java-archive"
+        |> Dict.set "jpeg" "image/jpeg"
+        |> Dict.set "jpg" "image/jpeg"
+        |> Dict.set "js" "text/javascript"
+        |> Dict.set "json" "application/json"
+        |> Dict.set "jsonld" "application/ld+json"
+        |> Dict.set "mid" "audio/midi"
+        |> Dict.set "midi" "audio/midi"
+        |> Dict.set "mjs" "text/javascript"
+        |> Dict.set "mp3" "audio/mpeg"
+        |> Dict.set "mp4" "video/mp4"
+        |> Dict.set "mpeg" "video/mpeg"
+        |> Dict.set "mpkg" "application/vnd.apple.installer+xml"
+        |> Dict.set "odp" "application/vnd.oasis.opendocument.presentation"
+        |> Dict.set "ods" "application/vnd.oasis.opendocument.spreadsheet"
+        |> Dict.set "odt" "application/vnd.oasis.opendocument.text"
+        |> Dict.set "oga" "audio/ogg"
+        |> Dict.set "ogv" "video/ogg"
+        |> Dict.set "ogx" "application/ogg"
+        |> Dict.set "opus" "audio/opus"
+        |> Dict.set "otf" "font/otf"
+        |> Dict.set "png" "image/png"
+        |> Dict.set "pdf" "application/pdf"
+        |> Dict.set "php" "application/x-httpd-php"
+        |> Dict.set "ppt" "application/vnd.ms-powerpoint"
+        |> Dict.set "pptx" "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        |> Dict.set "rar" "application/vnd.rar"
+        |> Dict.set "rtf" "application/rtf"
+        |> Dict.set "sh" "application/x-sh"
+        |> Dict.set "svg" "image/svg+xml"
+        |> Dict.set "tar" "application/x-tar"
+        |> Dict.set "tif" "image/tiff"
+        |> Dict.set "tiff" "image/tiff"
+        |> Dict.set "ts" "video/mp2t"
+        |> Dict.set "ttf" "font/ttf"
+        |> Dict.set "txt" "text/plain"
+        |> Dict.set "vsd" "application/vnd.visio"
+        |> Dict.set "wasm" "application/wasm"
+        |> Dict.set "wav" "audio/wav"
+        |> Dict.set "weba" "audio/webm"
+        |> Dict.set "webm" "video/webm"
+        |> Dict.set "webp" "image/webp"
+        |> Dict.set "woff" "font/woff"
+        |> Dict.set "woff2" "font/woff2"
+        |> Dict.set "xhtml" "application/xhtml+xml"
+        |> Dict.set "xls" "application/vnd.ms-excel"
+        |> Dict.set "xlsx" "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        |> Dict.set "xml" "application/xml"
+        |> Dict.set "xul" "application/vnd.mozilla.xul+xml"
+        |> Dict.set "zip" "application/zip"
+        |> Dict.set "7z" "application/x-7z-compressed"
