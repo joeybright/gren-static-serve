@@ -1,14 +1,16 @@
-module Server.Static exposing ( Mode(..), Config, ReadFileError(..), response, responseWithNotFound )
+module Server.Static exposing ( Mode(..), Config, response, responseWithNotFound )
 
 {-| Serve static files from a provided directory
 
-@docs Config, Mode, ReadFileError, response, responseWithNotFound
+@docs Config, Mode, response, responseWithNotFound
 
 -}
 
 import Bytes exposing ( Bytes )
 import Bytes.Decode
 import FileSystem
+import FileSystem.FileHandle
+import FileSystem.Path
 import HttpServer.Response
 import HttpServer.Response exposing ( Response )
 import MimeType
@@ -50,25 +52,6 @@ type Mode
     | PrettyUrl
 
 
-{-| An internal type for representing a path on disk.
-
-The first `Array String` represents the path. The second `Array String`, wrapped in a `Maybe`,
-represents a file with an extension (`.md`, for example).
--}
-type Path
-    = Path (Array String) (Maybe (Array String))
-
-
-{-| Possible errors when trying to read a static file from disk. Wraps both the known 
-(`FileSystem.AccessError`) and unknown (`FileSystem.UnknownFileSystemError`) errors into one
-type so no mapping between them is needed.
-
--}
-type ReadFileError
-    = AccessError FileSystem.AccessError
-    | UnknownFileSystemError FileSystem.UnknownFileSystemError
-
-
 {-| Configuration options required to find files and generate responses.
 
 - `fileSystemPermission` is the permission you get from the `FileSystem` module of the 
@@ -90,91 +73,31 @@ type alias Config =
     }
 
 
-{-| Create a `Path` from an `Array String`.
--}
-pathFromArray : Array String -> Path
-pathFromArray passedPath =
-    passedPath
-        |> Array.popLast
-        |> Maybe.map
-                (\{ initial, last } ->
-                    case String.split "." last of
-                        [] ->
-                            Path passedPath Nothing
-
-                        [ item ] ->
-                            Path passedPath Nothing
-
-                        filePath ->
-                            Path initial (Just filePath)
-                )
-        |> Maybe.withDefault (Path passedPath Nothing)
-
-
-{-| Change a `Path` back into an `Array String`
--}
-arrayFromPath : Path -> Array String
-arrayFromPath passedPath =
-    case passedPath of
-        Path path (Just fileName) ->
-            let
-                constructedFileName =
-                    fileName
-                        |> Array.intersperse "."
-                        |> Array.foldr (++) ""
-            in
-            Array.pushLast constructedFileName path
-
-        Path path Nothing ->
-            path
-
-
 {-| Read a file from disk as `Bytes`. 
 -}
-readFileAsBytes : FileSystem.Permission -> String -> Task ReadFileError Bytes
+readFileAsBytes : FileSystem.Permission -> FileSystem.Path.Path -> Task FileSystem.Error Bytes
 readFileAsBytes fsPermission fileName =
-    FileSystem.openForRead fsPermission fileName
-        |> Task.mapError AccessError
-        |> Task.andThen
-                (\permission ->
-                    FileSystem.read permission
-                        |> Task.mapError UnknownFileSystemError
-                )
+    FileSystem.FileHandle.openForRead fsPermission fileName
+        |> Task.andThen FileSystem.FileHandle.read
 
 
 {-| Take the passed path (and an optional modifier), try to find a file at that path, and 
 produce a `Response` if it can be found.
 -}
-staticFileResponse : Config -> Array String -> Maybe String -> Task ReadFileError Response
-staticFileResponse { directory, httpResponse, fileSystemPermission } passedPath pathModifier =
+staticFileResponse : Config -> FileSystem.Path.Path -> Task FileSystem.Error Response
+staticFileResponse { directory, httpResponse, fileSystemPermission } path =
     let
-        {- The passed path incluing any passed modifiers
-        -}
-        path =
-            pathModifier
-                |> Maybe.map (\mod -> Array.pushLast mod passedPath)
-                |> Maybe.withDefault passedPath
-
         {- The derived mime type of the file located at `path` (if any)
         -}
+        mimeType : String
         mimeType =
-            path
-                |> Array.last
-                |> Maybe.withDefault ""
-                |> MimeType.lookup
+            MimeType.lookup path.extension
     in
-    -- Build the path from the given path and any modifiers. Leverages the `FileSystem`
-    -- built-ins to normalize it.
-    path
-        |> Array.pushFirst directory
-        |> FileSystem.buildPath
-        |> FileSystem.normalizePath
-        -- Attempt to take the path and get a file from it on the file system 
-        |> readFileAsBytes fileSystemPermission
+    readFileAsBytes fileSystemPermission path
         |> Task.map
                 (\body ->
                     -- If it succeeds, produce a 200 (OK) response with the body set to 
-                    -- the found files contents (as a `String`)
+                    -- the found files contents (as `Bytes`)
                     httpResponse
                         |> HttpServer.Response.setHeader "Content-Type" mimeType
                         |> HttpServer.Response.setStatus 200
@@ -191,17 +114,9 @@ makes it simple to integrate with received requests from the `HttpServer` module
 When the task is successful, this function will produce a `Response` that contains the 
 requested files contents as a `String`. If the task fails, it will produce an error.
 -}
-response : Config -> Url -> Task ReadFileError Response
+response : Config -> Url -> Task FileSystem.Error Response
 response config url =
-    let
-        pathFromUrl : Array String
-        pathFromUrl =
-            url.path
-                |> String.split "/"
-                |> Array.dropFirst 1
-                |> Array.filter ((/=) "")
-    in
-    responseHelper config pathFromUrl
+    responseHelper config (FileSystem.Path.fromPosixString url.path)
 
 
 {-| Try to get a file from a folder given a passed `Url`.
@@ -221,58 +136,59 @@ responseWithNotFound config url =
 
 {-| This function does all the work.
 -}
-responseHelper : Config -> Array String -> Task ReadFileError Response
+responseHelper : Config -> FileSystem.Path.Path -> Task FileSystem.Error Response
 responseHelper config passedPath =
     let
-        redirect : Array String -> HttpServer.Response.Response -> HttpServer.Response.Response
+        redirect : FileSystem.Path.Path -> HttpServer.Response.Response -> HttpServer.Response.Response
         redirect path res =
-            let
-                location =
-                    "/" ++ Array.foldr (++) "" path
-            in
             HttpServer.Response.setStatus 308 res
-                |> HttpServer.Response.setHeader "Location" location
+                |> HttpServer.Response.setHeader "Location" (FileSystem.Path.toPosixString path)
+
+        indexPath : FileSystem.Path.Path
+        indexPath =
+            FileSystem.Path.fromPosixString "index.html"
     in
-    case
+    case 
         { mode = config.mode
-        , path = pathFromArray passedPath
-        }
+        , extension = passedPath.extension
+        , fileName = FileSystem.Path.filenameWithExtension passedPath 
+        } 
     of
-        { mode = Normal, path } ->
+        { mode = Normal, extension, fileName } ->
             -- In `Normal` mode, just try to find the passed path without any modifications 
             -- or fallbacks. Just fail if the file can't be found.
-            staticFileResponse config (arrayFromPath path) Nothing
+            staticFileResponse config passedPath
 
-        { mode = PrettyUrl, path = Path path Nothing } ->
+        { mode = PrettyUrl, extension = "", fileName } ->
             -- In `PrettyUrls` mode, when there is directory being looked for (not a file), try to
             -- find the `index.html` file within that directory
-            staticFileResponse config path (Just "index.html")
-
-        { mode = PrettyUrl, path = Path path (Just [ "index", "html" ]) } ->
+            staticFileResponse config (FileSystem.Path.append indexPath passedPath)
+        
+        { mode = PrettyUrl, extension, fileName = "index.html" } ->
             -- In `PrettyUrls` mode, when you're trying to access an index.html file and that file
             -- exists, redirect the directory rather than the index.html file itself
-            staticFileResponse config path (Just "index.html")
-                |> Task.map (redirect path)
+            staticFileResponse config (FileSystem.Path.append indexPath passedPath)
+                |> Task.map (redirect passedPath)
 
-        { mode = PrettyUrl, path } ->
+        { mode = PrettyUrl, extension, fileName } ->
             -- In `PrettyUrls` mode, when there is a filename being looked for, just try to find
             -- the file name and return it or otherwise fail!
-            staticFileResponse config (arrayFromPath path) Nothing
+            staticFileResponse config passedPath
 
-        { mode = SinglePageApp, path = Path _path Nothing } ->
+        { mode = SinglePageApp, extension = "", fileName } ->
             -- In `SinglePageApp` mode when there is not a file being looked for, just return the
             -- root `index.html` file if it exists.
-            staticFileResponse config [] (Just "index.html")
+            staticFileResponse config indexPath
 
-        { mode = SinglePageApp, path = Path [] (Just [ "index", "html" ]) } ->
+        { mode = SinglePageApp, extension, fileName = "index.html" } ->
             -- In `SinglePageApp` mode, when you're trying to access the `index.html` file at the
             -- root and that file exists, redirect the browser to the root
-            staticFileResponse config [] (Just "index.html")
-                |> Task.map (redirect [])
+            staticFileResponse config FileSystem.Path.empty
+                |> Task.map (redirect FileSystem.Path.empty)
 
-        { mode = SinglePageApp, path } ->
+        { mode = SinglePageApp, extension, fileName } ->
             -- In `SinglePageApp` mode when a specific file is being looked for, try to find it
             -- and otherwise try to serve the root index.html file and fail if that index.html
             -- file does not exist.
-            staticFileResponse config (arrayFromPath path) Nothing
-                |> Task.onError (\_ -> responseHelper config [])
+            staticFileResponse config passedPath
+                |> Task.onError (\_ -> responseHelper config FileSystem.Path.empty)
