@@ -146,7 +146,7 @@ responseHelper config passedPath =
 
         indexPath : FileSystem.Path.Path
         indexPath =
-            FileSystem.Path.fromPosixString "index.html"
+            FileSystem.Path.fromPosixString (config.directory ++ "/index.html")
     in
     case 
         { mode = config.mode
