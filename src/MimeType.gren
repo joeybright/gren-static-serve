@@ -6,18 +6,8 @@ import Dict exposing ( Dict )
 lookup : String -> String
 lookup fname =
     mimeTypes
-        |> Dict.get (getExtension fname)
+        |> Dict.get fname
         |> Maybe.withDefault "application/octet-stream"
-
-
-getExtension : String -> String
-getExtension fname =
-    if String.contains "." fname then
-        String.split "." fname
-            |> Array.last
-            |> Maybe.withDefault ""
-    else
-        ""
 
 
 mimeTypes : Dict String String
