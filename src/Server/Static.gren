@@ -146,7 +146,11 @@ responseHelper config passedPath =
 
         indexPath : FileSystem.Path.Path
         indexPath =
-            FileSystem.Path.fromPosixString (config.directory ++ "/index.html")
+            FileSystem.Path.append (FileSystem.Path.fromPosixString "/index.html") (FileSystem.Path.fromPosixString config.directory)
+
+        pathWithStaticDirectory : FileSystem.Path.Path
+        pathWithStaticDirectory = 
+            FileSystem.Path.prepend (FileSystem.Path.fromPosixString config.directory) passedPath
     in
     case 
         { mode = config.mode
@@ -157,23 +161,27 @@ responseHelper config passedPath =
         { mode = Normal, extension, fileName } ->
             -- In `Normal` mode, just try to find the passed path without any modifications 
             -- or fallbacks. Just fail if the file can't be found.
-            staticFileResponse config passedPath
+            staticFileResponse config pathWithStaticDirectory
 
         { mode = PrettyUrl, extension = "", fileName } ->
             -- In `PrettyUrls` mode, when there is directory being looked for (not a file), try to
             -- find the `index.html` file within that directory
-            staticFileResponse config (FileSystem.Path.append indexPath passedPath)
+            staticFileResponse config (FileSystem.Path.prepend (FileSystem.Path.fromPosixString config.directory) (FileSystem.Path.append (FileSystem.Path.fromPosixString "index.html") passedPath))
         
         { mode = PrettyUrl, extension, fileName = "index.html" } ->
             -- In `PrettyUrls` mode, when you're trying to access an index.html file and that file
             -- exists, redirect the directory rather than the index.html file itself
-            staticFileResponse config (FileSystem.Path.append indexPath passedPath)
-                |> Task.map (redirect passedPath)
+            case FileSystem.Path.parentPath passedPath of
+                Just path ->
+                    Task.map (redirect path) (staticFileResponse config pathWithStaticDirectory)
+                
+                Nothing ->
+                    Task.map (redirect (FileSystem.Path.fromPosixString "/")) (staticFileResponse config pathWithStaticDirectory)
 
         { mode = PrettyUrl, extension, fileName } ->
             -- In `PrettyUrls` mode, when there is a filename being looked for, just try to find
             -- the file name and return it or otherwise fail!
-            staticFileResponse config passedPath
+            staticFileResponse config pathWithStaticDirectory
 
         { mode = SinglePageApp, extension = "", fileName } ->
             -- In `SinglePageApp` mode when there is not a file being looked for, just return the
@@ -184,11 +192,10 @@ responseHelper config passedPath =
             -- In `SinglePageApp` mode, when you're trying to access the `index.html` file at the
             -- root and that file exists, redirect the browser to the root
             staticFileResponse config FileSystem.Path.empty
-                |> Task.map (redirect FileSystem.Path.empty)
 
         { mode = SinglePageApp, extension, fileName } ->
             -- In `SinglePageApp` mode when a specific file is being looked for, try to find it
             -- and otherwise try to serve the root index.html file and fail if that index.html
             -- file does not exist.
-            staticFileResponse config passedPath
+            staticFileResponse config pathWithStaticDirectory
                 |> Task.onError (\_ -> responseHelper config FileSystem.Path.empty)
