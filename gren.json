@@ -8,10 +8,10 @@
     "exposed-modules": [
         "Server.Static"
     ],
-    "gren-version": "0.3.0 <= v < 0.4.0",
+    "gren-version": "0.4.0 <= v < 0.5.0",
     "dependencies": {
-        "gren-lang/core": "4.0.0 <= v < 5.0.0",
-        "gren-lang/node": "3.1.0 <= v < 4.0.0",
-        "gren-lang/url": "3.0.0 <= v < 3.0.1"
+        "gren-lang/core": "5.0.0 <= v < 6.0.0",
+        "gren-lang/node": "4.0.0 <= v < 5.0.0",
+        "gren-lang/url": "4.0.0 <= v < 5.0.0"
     }
 }
