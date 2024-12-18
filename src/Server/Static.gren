@@ -152,12 +152,12 @@ responseHelper config passedPath =
         pathWithStaticDirectory = 
             FileSystem.Path.prepend (FileSystem.Path.fromPosixString config.directory) passedPath
     in
-    case 
+    when 
         { mode = config.mode
         , extension = passedPath.extension
         , fileName = FileSystem.Path.filenameWithExtension passedPath 
         } 
-    of
+    is
         { mode = Normal, extension, fileName } ->
             -- In `Normal` mode, just try to find the passed path without any modifications 
             -- or fallbacks. Just fail if the file can't be found.
@@ -171,7 +171,7 @@ responseHelper config passedPath =
         { mode = PrettyUrl, extension, fileName = "index.html" } ->
             -- In `PrettyUrls` mode, when you're trying to access an index.html file and that file
             -- exists, redirect the directory rather than the index.html file itself
-            case FileSystem.Path.parentPath passedPath of
+            when FileSystem.Path.parentPath passedPath is
                 Just path ->
                     Task.map (redirect path) (staticFileResponse config pathWithStaticDirectory)
                 
